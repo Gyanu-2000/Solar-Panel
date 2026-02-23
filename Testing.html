@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Solar Map - Lucknow Area</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <style>
+    #map {
+      height: 600px;
+      width: 100%;
+      border-radius: 15px;
+    }
+  </style>
+</head>
+<body>
+
+<h3>☀️ Solar & Weather Map (Lucknow Zone)</h3>
+<div id="map"></div>
+
+<script>
+  // Initialize map centered near BBD University, Lucknow
+  var map = L.map('map').setView([26.86, 81.03], 14);
+
+  // Limit map view (so users can’t pan outside this region)
+  var bounds = L.latLngBounds(
+    [26.82, 80.95], // Southwest corner
+    [26.90, 81.07]  // Northeast corner
+  );
+  map.setMaxBounds(bounds);
+  map.on('drag', function() { map.panInsideBounds(bounds, { animate: true }); });
+
+  // Load map tiles
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+  }).addTo(map);
+
+  // Handle map click
+  map.on('click', function(e) {
+    var lat = e.latlng.lat;
+    var lon = e.latlng.lng;
+
+    L.marker([lat, lon]).addTo(map)
+      .bindPopup(`Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}<br>Fetching data...`)
+      .openPopup();
+
+    // Call your backend or APIs
+    fetch(`/api/solar?lat=${lat}&lon=${lon}`)
+      .then(res => res.json())
+      .then(data => {
+        alert(`Solar irradiance: ${data.irradiance} kWh/m²/day\nTemp: ${data.temp}°C`);
+      })
+      .catch(err => console.error(err));
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SolarIQ — Smart Solar Intelligence</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --sun: #FFB30F;
+      --sun-pale: #FFD670;
+      --deep: #0A0E1A;
+      --navy: #0F1629;
+      --panel: #141C30;
+      --edge: #1E2A45;
+      --text: #E8EDF7;
+      --muted: #8A9BBE;
+      --accent: #00D4FF;
+      --green: #22C55E;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--deep);
+      color: var(--text);
+      overflow-x: hidden;
+      cursor: none;
+    }
+
+    /* Custom cursor */
+    .cursor {
+      width: 12px; height: 12px;
+      background: var(--sun);
+      border-radius: 50%;
+      position: fixed; top: 0; left: 0;
+      pointer-events: none; z-index: 9999;
+      transition: transform 0.1s ease;
+      mix-blend-mode: difference;
+    }
+    .cursor-ring {
+      width: 36px; height: 36px;
+      border: 1.5px solid var(--sun-pale);
+      border-radius: 50%;
+      position: fixed; top: 0; left: 0;
+      pointer-events: none; z-index: 9998;
+      transition: transform 0.15s ease, width 0.2s, height 0.2s;
+      opacity: 0.6;
+    }
+
+    /* ===== HERO ===== */
+    .hero {
+      min-height: 100vh;
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      overflow: hidden;
+      padding: 0 80px;
+      gap: 60px;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 70% 40%, rgba(255,179,15,0.08) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 50% at 20% 80%, rgba(0,212,255,0.06) 0%, transparent 60%);
+    }
+
+    /* Animated sun orb */
+    .sun-orb {
+      position: absolute;
+      top: -120px; right: -120px;
+      width: 500px; height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 40%, #FFD670, #FFB30F 40%, #FF6B00 70%, transparent 100%);
+      filter: blur(1px);
+      animation: pulse-sun 6s ease-in-out infinite;
+      opacity: 0.85;
+    }
+
+    .sun-ring {
+      position: absolute;
+      top: -160px; right: -160px;
+      width: 580px; height: 580px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,179,15,0.25);
+      animation: spin-ring 20s linear infinite;
+    }
+    .sun-ring::before {
+      content: '';
+      position: absolute;
+      top: 20px; left: 50%;
+      width: 8px; height: 8px;
+      background: var(--sun);
+      border-radius: 50%;
+      transform: translateX(-50%);
+      box-shadow: 0 0 16px 4px var(--sun);
+    }
+    .sun-ring2 {
+      position: absolute;
+      top: -190px; right: -190px;
+      width: 640px; height: 640px;
+      border-radius: 50%;
+      border: 1px dashed rgba(255,179,15,0.1);
+      animation: spin-ring 35s linear infinite reverse;
+    }
+
+    @keyframes pulse-sun {
+      0%, 100% { transform: scale(1); opacity: 0.85; }
+      50% { transform: scale(1.04); opacity: 1; }
+    }
+    @keyframes spin-ring {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* Grid bg */
+    .grid-bg {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,179,15,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,179,15,0.04) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black, transparent);
+    }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 24px 80px;
+      backdrop-filter: blur(20px);
+      background: rgba(10,14,26,0.7);
+      border-bottom: 1px solid rgba(255,179,15,0.08);
+    }
+
+    .logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 28px;
+      letter-spacing: 4px;
+      color: var(--sun);
+      text-decoration: none;
+    }
+    .logo span { color: var(--accent); }
+
+    .nav-links {
+      display: flex; gap: 40px; list-style: none;
+    }
+    .nav-links a {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+    .nav-links a:hover { color: var(--sun); }
+
+    .nav-cta {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: var(--sun);
+      color: var(--deep);
+      padding: 10px 24px;
+      border: none; cursor: none;
+      font-weight: 700;
+      transition: background 0.3s, transform 0.2s;
+      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+    }
+    .nav-cta:hover { background: var(--sun-pale); transform: translateY(-1px); }
+
+    /* HERO LEFT */
+    .hero-left { position: relative; z-index: 2; padding-top: 80px; }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--sun);
+      border: 1px solid rgba(255,179,15,0.3);
+      padding: 6px 16px;
+      margin-bottom: 32px;
+      background: rgba(255,179,15,0.05);
+    }
+    .badge-dot {
+      width: 6px; height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: blink 2s ease infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(64px, 8vw, 110px);
+      line-height: 0.92;
+      letter-spacing: 2px;
+      margin-bottom: 28px;
+    }
+    h1 .line1 { display: block; color: var(--text); }
+    h1 .line2 { display: block; color: var(--sun); }
+    h1 .line3 { display: block; color: transparent; -webkit-text-stroke: 1px rgba(255,179,15,0.4); }
+
+    .hero-desc {
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--muted);
+      max-width: 440px;
+      margin-bottom: 48px;
+      font-weight: 300;
+    }
+    .hero-desc strong { color: var(--text); font-weight: 500; }
+
+    .hero-actions { display: flex; gap: 16px; align-items: center; }
+
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: var(--sun);
+      color: var(--deep);
+      padding: 16px 32px;
+      text-decoration: none;
+      font-weight: 700;
+      transition: all 0.3s;
+      clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+      cursor: none;
+    }
+    .btn-primary:hover { background: var(--sun-pale); transform: translateY(-2px); box-shadow: 0 12px 40px rgba(255,179,15,0.25); }
+
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 16px 32px;
+      text-decoration: none;
+      border: 1px solid var(--edge);
+      transition: all 0.3s;
+      cursor: none;
+    }
+    .btn-secondary:hover { color: var(--text); border-color: var(--sun); }
+
+    /* STATS BAR */
+    .stats-bar {
+      display: flex; gap: 0;
+      margin-top: 64px;
+      border: 1px solid var(--edge);
+      background: rgba(20,28,48,0.6);
+    }
+    .stat-item {
+      flex: 1; padding: 20px 28px;
+      border-right: 1px solid var(--edge);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 36px;
+      color: var(--sun);
+      letter-spacing: 1px;
+    }
+    .stat-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* HERO RIGHT - CARD */
+    .hero-right {
+      position: relative; z-index: 2;
+      padding-top: 80px;
+    }
+
+    .data-card {
+      background: var(--panel);
+      border: 1px solid var(--edge);
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    .data-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--sun), transparent);
+    }
+
+    .card-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 24px;
+    }
+    .card-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .card-live {
+      display: flex; align-items: center; gap: 6px;
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      color: var(--green);
+      letter-spacing: 2px;
+    }
+    .live-dot {
+      width: 6px; height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: blink 2s ease infinite;
+    }
+
+    .big-metric {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 72px;
+      color: var(--sun);
+      line-height: 1;
+      letter-spacing: 2px;
+    }
+    .metric-unit {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 16px;
+      color: var(--muted);
+      font-weight: 300;
+      margin-left: 4px;
+      vertical-align: super;
+    }
+
+    .metric-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px; margin-top: 24px;
+    }
+    .metric-cell {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--edge);
+      padding: 14px;
+    }
+    .mc-val {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 26px;
+      color: var(--text);
+    }
+    .mc-key {
+      font-family: 'Space Mono', monospace;
+      font-size: 8px;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .chart-wrap { margin-top: 24px; height: 120px; position: relative; }
+
+    /* Map input */
+    .map-section-inner {
+      margin-top: 20px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--edge);
+      padding: 14px 18px;
+      display: flex; gap: 12px; align-items: center;
+    }
+    .coord-inputs { display: flex; gap: 8px; flex: 1; }
+    .coord-inputs input {
+      flex: 1;
+      background: transparent;
+      border: 1px solid var(--edge);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color 0.3s;
+    }
+    .coord-inputs input:focus { border-color: var(--sun); }
+    .coord-inputs input::placeholder { color: var(--muted); }
+    .fetch-btn {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      background: var(--sun);
+      color: var(--deep);
+      border: none;
+      padding: 8px 18px;
+      font-weight: 700;
+      cursor: none;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+    .fetch-btn:hover { background: var(--sun-pale); }
+
+    /* ===== MAP SECTION ===== */
+    section { padding: 120px 80px; }
+
+    .section-eyebrow {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--sun);
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(40px, 5vw, 64px);
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+    .section-sub {
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 520px;
+      line-height: 1.7;
+      font-weight: 300;
+    }
+
+    .map-grid {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 24px;
+      margin-top: 48px;
+    }
+    #map {
+      height: 480px;
+      border: 1px solid var(--edge);
+      filter: saturate(0.8) brightness(0.9);
+    }
+
+    .map-sidebar {
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .sidebar-card {
+      background: var(--panel);
+      border: 1px solid var(--edge);
+      padding: 24px;
+      position: relative;
+    }
+    .sidebar-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, var(--sun), transparent);
+    }
+    .sidebar-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .sidebar-val {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 44px;
+      color: var(--sun);
+      line-height: 1;
+    }
+    .sidebar-unit {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 300;
+    }
+
+    /* ===== FEATURES ===== */
+    .features-section { background: var(--navy); }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      margin-top: 64px;
+      background: var(--edge);
+      border: 1px solid var(--edge);
+    }
+    .feat-card {
+      background: var(--panel);
+      padding: 40px 36px;
+      transition: background 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .feat-card:hover { background: #1A2338; }
+    .feat-card::after {
+      content: '';
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--sun);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.4s ease;
+    }
+    .feat-card:hover::after { transform: scaleX(1); }
+
+    .feat-icon {
+      font-size: 32px;
+      margin-bottom: 20px;
+      display: block;
+    }
+    .feat-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 28px;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+    .feat-desc {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.7;
+      font-weight: 300;
+    }
+
+    /* ===== PREDICTION SECTION ===== */
+    .pred-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+    .pred-chart-wrap {
+      background: var(--panel);
+      border: 1px solid var(--edge);
+      padding: 32px;
+      position: relative;
+    }
+    .pred-chart-wrap::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--sun), var(--accent));
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      background: var(--navy);
+      border-top: 1px solid var(--edge);
+      padding: 64px 80px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    .footer-logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 36px;
+      letter-spacing: 4px;
+      color: var(--sun);
+      margin-bottom: 16px;
+    }
+    .footer-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+      font-weight: 300;
+    }
+    .footer-heading {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--sun);
+      margin-bottom: 20px;
+    }
+    .footer-links { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .footer-links a {
+      font-size: 14px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--text); }
+
+    .footer-bottom {
+      padding: 24px 80px;
+      background: var(--deep);
+      border-top: 1px solid var(--edge);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .footer-copy {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    /* Result output */
+    #result-box {
+      display: none;
+      background: var(--panel);
+      border: 1px solid var(--edge);
+      border-top: 2px solid var(--sun);
+      padding: 24px;
+      margin-top: 16px;
+    }
+    .res-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+    .res-item {}
+    .res-key {
+      font-family: 'Space Mono', monospace;
+      font-size: 8px; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .res-val {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 32px; color: var(--sun);
+    }
+
+    /* Reveal animations */
+    .reveal { opacity: 0; transform: translateY(30px); transition: opacity 0.7s ease, transform 0.7s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 900px) {
+      nav { padding: 20px 24px; }
+      .hero { grid-template-columns: 1fr; padding: 0 24px; padding-top: 100px; }
+      .hero-right { display: none; }
+      section { padding: 80px 24px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .map-grid { grid-template-columns: 1fr; }
+      footer { grid-template-columns: 1fr; padding: 40px 24px; }
+      .footer-bottom { padding: 20px 24px; flex-direction: column; gap: 8px; }
+      .pred-section { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+    }
+/*Search bar*/
+  .nav-search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.nav-search input {
+  background: transparent;
+  border: 1px solid var(--edge);
+  color: var(--text);
+  padding: 8px 12px;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  outline: none;
+}
+
+.nav-search input:focus {
+  border-color: var(--sun);
+}
+
+.nav-search button {
+  background: var(--sun);
+  color: var(--deep);
+  border: none;
+  padding: 8px 14px;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+}
+  </style>
+</head>
+<body>
+
+<!-- Custom cursor -->
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="ring"></div>
+
+<!-- NAV -->
+<nav>
+  <a class="logo" href="#">SOLAR<span>IQ</span></a>
+  <ul class="nav-links">
+    <li><a href="#map-section">Map</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#forecast">Forecast</a></li>
+    <li><a href="#about">About</a></li>
+  </ul>
+
+  <div class="nav-search">
+    <input type="text" id="city-input" placeholder="Search city..." />
+    <button onclick="searchCity()">Search</button>
+  </div>
+  <button class="nav-cta" onclick="document.getElementById('map-section').scrollIntoView({behavior:'smooth'})">Launch App</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="home">
+  <div class="grid-bg"></div>
+  <div class="sun-orb"></div>
+  <div class="sun-ring"></div>
+  <div class="sun-ring2"></div>
+
+  <div class="hero-left">
+    <div class="hero-badge">
+      <div class="badge-dot"></div>
+      Real-Time Solar Intelligence
+    </div>
+    <h1>
+      <span class="line1">HARNESS</span>
+      <span class="line2">THE SUN's</span>
+      <span class="line3">POWER</span>
+    </h1>
+    <p class="hero-desc">
+      Real-time solar irradiance analytics powered by <strong>NASA POWER API</strong> and <strong>OpenWeather</strong>. Click any location on the map to get instant solar generation forecasts, energy savings, and 7-day predictions.
+    </p>
+    <div class="hero-actions">
+      <a class="btn-primary" href="#map-section">
+        ☀ Explore the Map
+      </a>
+      <a class="btn-secondary" href="#features">
+        Learn More →
+      </a>
+    </div>
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="stat-num">NASA</div>
+        <div class="stat-label">Power API</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">Live</div>
+        <div class="stat-label">Weather Data</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">7 Day</div>
+        <div class="stat-label">Forecast</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-right">
+    <div class="data-card">
+      <div class="card-header">
+        <div class="card-title">Solar Dashboard Preview</div>
+        <div class="card-live"><div class="live-dot"></div> LIVE</div>
+      </div>
+      <div class="big-metric" id="hero-irr">6.42<span class="metric-unit">kWh/m²/day</span></div>
+      <div class="metric-row">
+        <div class="metric-cell">
+          <div class="mc-val" id="hero-temp">32°C</div>
+          <div class="mc-key">Temperature</div>
+        </div>
+        <div class="metric-cell">
+          <div class="mc-val" id="hero-clouds">18%</div>
+          <div class="mc-key">Cloud Cover</div>
+        </div>
+        <div class="metric-cell">
+          <div class="mc-val" id="hero-eff">82%</div>
+          <div class="mc-key">Efficiency</div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="heroChart"></canvas>
+      </div>
+      <div class="map-section-inner">
+        <div class="coord-inputs">
+          <input type="number" id="lat-input" placeholder="Latitude" step="0.0001" value="26.86"/>
+          <input type="number" id="lon-input" placeholder="Longitude" step="0.0001" value="81.03"/>
+        </div>
+        <button class="fetch-btn" onclick="fetchSolar()">Analyze</button>
+      </div>
+      <div id="result-box">
+        <div class="res-grid">
+          <div class="res-item">
+            <div class="res-key">Irradiance</div>
+            <div class="res-val" id="r-irr">–</div>
+          </div>
+          <div class="res-item">
+            <div class="res-key">Daily Gen</div>
+            <div class="res-val" id="r-day">–</div>
+          </div>
+          <div class="res-item">
+            <div class="res-key">Monthly Save</div>
+            <div class="res-val" id="r-save">–</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MAP SECTION -->
+<section id="map-section">
+  <div class="section-eyebrow reveal">Location Intelligence</div>
+  <div class="section-title reveal">Click Anywhere.<br>Get Solar Data.</div>
+  <p class="section-sub reveal">Select any location on the map. Our engine fetches real-time irradiance data from NASA and live cloud cover from OpenWeather to calculate your solar generation potential instantly.</p>
+
+  <div class="map-grid reveal">
+    <div>
+      <div id="map"></div>
+    </div>
+    <div class="map-sidebar">
+      <div class="sidebar-card">
+        <div class="sidebar-label">Avg Irradiance</div>
+        <div class="sidebar-val" id="m-irr">–</div>
+        <div class="sidebar-unit">kWh/m²/day</div>
+      </div>
+      <div class="sidebar-card">
+        <div class="sidebar-label">Daily Generation</div>
+        <div class="sidebar-val" id="m-day">–</div>
+        <div class="sidebar-unit">kWh/day</div>
+      </div>
+      <div class="sidebar-card">
+        <div class="sidebar-label">Monthly Savings</div>
+        <div class="sidebar-val" id="m-save">–</div>
+        <div class="sidebar-unit">₹ estimated</div>
+      </div>
+      <div class="sidebar-card">
+        <div class="sidebar-label">Cloud Cover</div>
+        <div class="sidebar-val" id="m-cloud">–</div>
+        <div class="sidebar-unit">% cover</div>
+      </div>
+      <div style="background: rgba(255,179,15,0.06); border: 1px solid rgba(255,179,15,0.2); padding: 16px; font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 1px; line-height: 1.7;">
+        ☀ Click on the map to analyze any location's solar potential in real-time.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features-section" id="features">
+  <div class="section-eyebrow reveal">What We Offer</div>
+  <div class="section-title reveal">Built on Real Data.<br>Powered by Science.</div>
+  <div class="features-grid reveal">
+    <div class="feat-card">
+      <span class="feat-icon">🛰️</span>
+      <div class="feat-title">NASA POWER API</div>
+      <p class="feat-desc">Multi-year historical solar irradiance data from NASA's POWER dataset, averaged to give you reliable baseline metrics for any location on Earth.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">🌦️</span>
+      <div class="feat-title">Live Weather Fusion</div>
+      <p class="feat-desc">Real-time temperature and cloud cover from OpenWeather API, dynamically adjusting your solar efficiency calculation based on today's actual conditions.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">📈</span>
+      <div class="feat-title">7-Day Forecast</div>
+      <p class="feat-desc">Trend-based energy generation predictions for the next 7 days, using irradiance baselines with noise modelling to simulate realistic variability.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">💡</span>
+      <div class="feat-title">Cost Savings Engine</div>
+      <p class="feat-desc">Estimates monthly electricity savings in ₹ based on your generated kWh and current average Indian electricity rates. Plan your investment smarter.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">🗺️</span>
+      <div class="feat-title">Interactive Map</div>
+      <p class="feat-desc">Leaflet-powered interactive map interface. Click anywhere to place a pin and instantly receive full solar analytics for that precise coordinate.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">⚡</span>
+      <div class="feat-title">Instant Analysis</div>
+      <p class="feat-desc">Flask-powered REST API backend returns comprehensive solar metrics in seconds. From click to insight — no waiting, no complexity.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FORECAST SECTION -->
+<section id="forecast">
+  <div class="pred-section">
+    <div class="reveal">
+      <div class="section-eyebrow">Predictive Analytics</div>
+      <div class="section-title">7-Day Energy<br>Forecast</div>
+      <p class="section-sub">Our forecasting model combines historical irradiance baselines with trend analysis to project your panel's output for the coming week. Make data-driven decisions about energy usage and grid export.</p>
+      <div style="margin-top: 36px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display:flex; gap: 12px; align-items: center;">
+          <div style="width: 12px; height: 3px; background: var(--sun);"></div>
+          <span style="font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 1px;">Projected daily generation (kWh)</span>
+        </div>
+        <div style="display:flex; gap: 12px; align-items: center;">
+          <div style="width: 12px; height: 3px; background: var(--accent);"></div>
+          <span style="font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 1px;">Efficiency-adjusted output</span>
+        </div>
+      </div>
+    </div>
+    <div class="pred-chart-wrap reveal">
+      <div style="font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 20px;">
+        Sample Forecast — Lucknow, UP
+      </div>
+      <canvas id="forecastChart" height="260"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section id="about" style="background: var(--navy);">
+  <div class="section-eyebrow reveal">About the Project</div>
+  <div class="section-title reveal">Open Source.<br>Community Driven.</div>
+  <p class="section-sub reveal" style="max-width: 720px;">
+    SolarIQ is an academic and open-source project built to democratize access to solar potential data across India. Built with Python (Flask), NASA POWER, and OpenWeatherMap APIs. Designed for researchers, engineers, and solar entrepreneurs who need accurate, location-specific solar intelligence.
+  </p>
+  <div style="margin-top: 48px; display: flex; gap: 24px; flex-wrap: wrap;" class="reveal">
+    <div style="background: var(--panel); border: 1px solid var(--edge); padding: 20px 32px; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 1px;">
+      🐍 Python + Flask Backend
+    </div>
+    <div style="background: var(--panel); border: 1px solid var(--edge); padding: 20px 32px; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 1px;">
+      🗺 Leaflet.js Maps
+    </div>
+    <div style="background: var(--panel); border: 1px solid var(--edge); padding: 20px 32px; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 1px;">
+      🛰 NASA POWER Dataset
+    </div>
+    <div style="background: var(--panel); border: 1px solid var(--edge); padding: 20px 32px; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 1px;">
+      🌦 OpenWeatherMap API
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div>
+    <div class="footer-logo">SOLARIQ</div>
+    <p class="footer-desc">Real-time solar intelligence for a sustainable future. Powered by NASA and OpenWeather data.</p>
+  </div>
+  <div>
+    <div class="footer-heading">Navigation</div>
+    <ul class="footer-links">
+      <li><a href="#home">Home</a></li>
+      <li><a href="#map-section">Map Analyzer</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#forecast">Forecast</a></li>
+      <li><a href="#about">About</a></li>
+    </ul>
+  </div>
+  <div>
+    <div class="footer-heading">Data Sources</div>
+    <ul class="footer-links">
+      <li><a href="https://power.larc.nasa.gov/" target="_blank">NASA POWER API</a></li>
+      <li><a href="https://openweathermap.org/" target="_blank">OpenWeatherMap</a></li>
+      <li><a href="https://leafletjs.com/" target="_blank">Leaflet.js</a></li>
+    </ul>
+  </div>
+</footer>
+<div class="footer-bottom">
+  <span class="footer-copy">© 2025 SolarIQ — Solar Intelligence Platform</span>
+  <span class="footer-copy">Built with NASA POWER + OpenWeather</span>
+</div>
+
+<script>
+  // Custom cursor
+  const cursor = document.getElementById('cursor');
+  const ring = document.getElementById('ring');
+  let mx = 0, my = 0, rx = 0, ry = 0;
+  document.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    cursor.style.transform = `translate(${mx - 6}px, ${my - 6}px)`;
+  });
+  function animateRing() {
+    rx += (mx - rx - 18) * 0.12;
+    ry += (my - ry - 18) * 0.12;
+    ring.style.transform = `translate(${rx}px, ${ry}px)`;
+    requestAnimationFrame(animateRing);
+  }
+  animateRing();
+
+  // Hero mini chart
+  const hCtx = document.getElementById('heroChart').getContext('2d');
+  const heroData = [5.8, 6.1, 6.4, 6.2, 6.7, 6.9, 6.42];
+  new Chart(hCtx, {
+    type: 'line',
+    data: {
+      labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+      datasets: [{
+        data: heroData,
+        borderColor: '#FFB30F',
+        backgroundColor: 'rgba(255,179,15,0.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        pointHoverBackgroundColor: '#FFB30F'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: true } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#8A9BBE', font: { family: 'Space Mono', size: 8 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8A9BBE', font: { family: 'Space Mono', size: 8 } } }
+      }
+    }
+  });
+
+  // Forecast chart
+  const fCtx = document.getElementById('forecastChart').getContext('2d');
+  const days = ['Day 1','Day 2','Day 3','Day 4','Day 5','Day 6','Day 7'];
+  const fData = [8.2, 8.6, 7.9, 8.8, 9.1, 8.4, 8.7];
+  const fAdj = fData.map(v => +(v * 0.82).toFixed(2));
+  new Chart(fCtx, {
+    type: 'bar',
+    data: {
+      labels: days,
+      datasets: [
+        {
+          label: 'Projected (kWh)',
+          data: fData,
+          backgroundColor: 'rgba(255,179,15,0.8)',
+          borderColor: '#FFB30F',
+          borderWidth: 1,
+          borderRadius: 2,
+          order: 2
+        },
+        {
+          label: 'Adjusted Output',
+          data: fAdj,
+          type: 'line',
+          borderColor: '#00D4FF',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointBackgroundColor: '#00D4FF',
+          pointRadius: 4,
+          tension: 0.4,
+          order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8A9BBE', font: { family: 'Space Mono', size: 9 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8A9BBE', font: { family: 'Space Mono', size: 9 } }, beginAtZero: true }
+      }
+    }
+  });
+
+  // Leaflet map
+  const map = L.map('map').setView([26.86, 81.03], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  let mapMarker = null;
+  map.on('click', function(e) {
+    const lat = e.latlng.lat, lon = e.latlng.lng;
+    if (mapMarker) map.removeLayer(mapMarker);
+    mapMarker = L.marker([lat, lon]).addTo(map)
+      .bindPopup(`<b>Lat:</b> ${lat.toFixed(4)}<br><b>Lon:</b> ${lon.toFixed(4)}<br><em>Fetching solar data...</em>`)
+      .openPopup();
+
+    fetch(`/api/solar?lat=${lat}&lon=${lon}`)
+      .then(r => r.json())
+      .then(d => {
+        document.getElementById('m-irr').textContent = d.irradiance ?? '–';
+        document.getElementById('m-day').textContent = d.daily_gen ?? '–';
+        document.getElementById('m-save').textContent = d.cost_saving ? '₹' + d.cost_saving : '–';
+        document.getElementById('m-cloud').textContent = d.clouds != null ? d.clouds + '%' : '–';
+        mapMarker.setPopupContent(`<b>${lat.toFixed(4)}, ${lon.toFixed(4)}</b><br>Irradiance: ${d.irradiance} kWh/m²/day<br>Temp: ${d.temp}°C | Clouds: ${d.clouds}%`).openPopup();
+      })
+      .catch(() => {
+        mapMarker.setPopupContent(`<b>${lat.toFixed(4)}, ${lon.toFixed(4)}</b><br><em style="color:orange">API not connected — run Flask backend</em>`).openPopup();
+      });
+  });
+
+  // Fetch from coordinate inputs
+  function fetchSolar() {
+    const lat = document.getElementById('lat-input').value;
+    const lon = document.getElementById('lon-input').value;
+    if (!lat || !lon) return;
+
+    document.getElementById('result-box').style.display = 'none';
+
+    fetch(`/api/solar?lat=${lat}&lon=${lon}`)
+      .then(r => r.json())
+      .then(d => {
+        document.getElementById('r-irr').textContent = d.irradiance ?? 'N/A';
+        document.getElementById('r-day').textContent = d.daily_gen ?? 'N/A';
+        document.getElementById('r-save').textContent = d.cost_saving ? '₹' + d.cost_saving : 'N/A';
+        document.getElementById('result-box').style.display = 'block';
+        // Update hero card
+        if (d.temp) document.getElementById('hero-temp').textContent = d.temp + '°C';
+        if (d.clouds != null) {
+          document.getElementById('hero-clouds').textContent = d.clouds + '%';
+          document.getElementById('hero-eff').textContent = (100 - d.clouds) + '%';
+        }
+        if (d.irradiance) document.getElementById('hero-irr').textContent = d.irradiance;
+      })
+      .catch(() => {
+        document.getElementById('r-irr').textContent = 'N/A';
+        document.getElementById('result-box').style.display = 'block';
+      });
+  }
+
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('visible'), i * 80);
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  reveals.forEach(r => obs.observe(r));
+
+  // Search bar functionality
+  function searchCity() {
+  const city = document.getElementById("city-input").value;
+  if (!city) return;
+
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${city}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.length === 0) {
+        alert("City not found");
+        return;
+      }
+
+      const lat = parseFloat(data[0].lat);
+      const lon = parseFloat(data[0].lon);
+
+      // Move map
+      map.setView([lat, lon], 12);
+
+      if (mapMarker) map.removeLayer(mapMarker);
+      mapMarker = L.marker([lat, lon]).addTo(map)
+        .bindPopup(`<b>${city}</b>`)
+        .openPopup();
+
+      // Fetch solar data
+      fetch(`/api/solar?lat=${lat}&lon=${lon}`)
+        .then(r => r.json())
+        .then(d => {
+          document.getElementById('m-irr').textContent = d.irradiance ?? '–';
+          document.getElementById('m-day').textContent = d.daily_gen ?? '–';
+          document.getElementById('m-save').textContent = d.cost_saving ? '₹' + d.cost_saving : '–';
+          document.getElementById('m-cloud').textContent = d.clouds != null ? d.clouds + '%' : '–';
+        });
+    })
+    .catch(() => alert("Search failed"));
+}
+</script>
+</body>
+</html>

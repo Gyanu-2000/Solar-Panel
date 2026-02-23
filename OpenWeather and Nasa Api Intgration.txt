@@ -1,0 +1,166 @@
+OpenWeather and Nasa Api Intgration -------------------->
+
+
+import requests
+import pandas as pd
+import datetime
+from sklearn.linear_model import LinearRegression
+import numpy as np
+import matplotlib.pyplot as plt
+
+# ---------------- CONFIG ----------------
+LAT = 12.9716   # Example: Bangalore
+LON = 77.5946
+START = "20250101"
+END = "20250131"
+OPENWEATHER_KEY = "5a21133496dc3525f37dc8c37aee77aa"  # <-- put your key here
+PANEL_EFFICIENCY = 0.18  # 18%
+PANEL_AREA = 10  # m²
+
+# ---------------- NASA POWER API ----------------
+def get_nasa_data(lat, lon, start, end):
+    url = (
+        f"https://power.larc.nasa.gov/api/temporal/daily/point?"
+        f"parameters=ALLSKY_SFC_SW_DWN&community=RE&longitude={lon}&latitude={lat}"
+        f"&start={start}&end={end}&format=JSON"
+    )
+    r = requests.get(url)
+    data = r.json()
+    df = pd.DataFrame(data['properties']['parameter']['ALLSKY_SFC_SW_DWN'].items(),
+                      columns=['date', 'irradiance_kWh_m2_day'])
+    df['date'] = pd.to_datetime(df['date'])
+    return df
+
+# ---------------- OPENWEATHER API ----------------
+def get_weather(lat, lon, key):
+    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={key}&units=metric"
+    print(f"Fetching weather data from OpenWeather...")
+    r = requests.get(url)
+    print(f"Status: {r.status_code}")
+    
+    try:
+        data = r.json()
+    except Exception as e:
+        print("❌ Error reading response:", e)
+        return 0, 25  # fallback
+    
+    # Defensive parsing
+    clouds = data.get('clouds', {}).get('all', 0)
+    temp = data.get('main', {}).get('temp', 25)
+    
+    # If the response had a problem message, show it
+    if "message" in data:
+        print(⚠️ API message:", data["message"])
+    
+    print(f"✅ Cloud cover: {clouds}%, Temperature: {temp}°C")
+    return clouds, temp
+
+
+# ---------------- CALCULATION ----------------
+def calculate_generation(df, cloud_cover):
+    # Adjust irradiance by cloud cover
+    df['adjusted_irradiance'] = df['irradiance_kWh_m2_day'] * (1 - cloud_cover / 100)
+    # Calculate energy generation (kWh/day)
+    df['generation_kWh'] = df['adjusted_irradiance'] * PANEL_AREA * PANEL_EFFICIENCY
+    return df
+
+# ---------------- COST ESTIMATION ----------------
+def estimate_cost(df, usage_type='residential'):
+    rate = 6 if usage_type == 'residential' else 10  # ₹/kWh
+    df['cost_savings'] = df['generation_kWh'] * rate
+    return df
+
+# ---------------- SIMPLE FORECAST ----------------
+def forecast_generation(df):
+    df = df.reset_index(drop=True)
+    X = np.arange(len(df)).reshape(-1, 1)
+    y = df['generation_kWh'].values
+    model = LinearRegression().fit(X, y)
+    future_days = np.arange(len(df), len(df) + 7).reshape(-1, 1)
+    preds = model.predict(future_days)
+    return preds
+
+# ---------------- RUN ALL ----------------
+print("Fetching NASA data...")
+solar_df = get_nasa_data(LAT, LON, START, END)
+
+print("Fetching current weather...")
+cloud_cover, temp = get_weather(LAT, LON, OPENWEATHER_KEY)
+print(f"Cloud cover: {cloud_cover}%, Temperature: {temp}°C")
+
+solar_df = calculate_generation(solar_df, cloud_cover)
+solar_df = estimate_cost(solar_df)
+
+# Summary
+daily_avg = solar_df['generation_kWh'].mean()
+monthly_total = solar_df['generation_kWh'].sum()
+cost_month = solar_df['cost_savings'].sum()
+
+print("\n=== Summary ===")
+print(f"Average Daily Generation: {daily_avg:.2f} kWh/day")
+print(f"Total Monthly Generation: {monthly_total:.2f} kWh")
+print(f"Estimated Monthly Cost Savings: ₹{cost_month:.2f}")
+
+# Forecast next 7 days
+preds = forecast_generation(solar_df)
+print("\nPredicted Generation for Next 7 Days (kWh/day):")
+print(preds.round(2))
+
+# Plot
+plt.figure(figsize=(10,5))
+plt.plot(solar_df['date'], solar_df['generation_kWh'], label='Actual')
+plt.plot(pd.date_range(solar_df['date'].iloc[-1], periods=8, freq='D')[1:], preds, label='Forecast', linestyle='--')
+plt.title("Daily Solar Generation (kWh/day)")
+plt.xlabel("Date")
+plt.ylabel("Energy (kWh)")
+plt.legend()
+plt.grid()
+plt.show()
+
+
+
+
+
+
+
+
+To check API------------------------>
+
+
+import requests
+
+key = "5a21133496dc3525f37dc8c37aee77aa"  # your key
+lat, lon = 12.9716, 77.5946
+
+r = requests.get(f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={key}&units=metric")
+print("Status:", r.status_code)
+print("Response:", r.text)
+
+
+
+
+CHATGPT CHATS ----------------> https://chatgpt.com/share/6906ed67-8b90-8000-aebd-959b85178dad
+
+------------------------------->https://chatgpt.com/share/6906ee02-9a70-8000-af53-de95ef089a1d 
+
+
+------------------------------>https://chatgpt.com/share/6906f748-b48c-8000-8c55-24510af4ccd4 
+
+
+                              
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
